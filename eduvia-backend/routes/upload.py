@@ -18,6 +18,7 @@ security = HTTPBearer()
 SECRET_KEY = os.getenv("SECRET_KEY", "fallbacksecret")
 ALGORITHM = "HS256"
 
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
@@ -32,20 +33,31 @@ def get_current_user(
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
 def extract_text_from_file(file_bytes: bytes) -> str:
+    # Try PDF first
     try:
         pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
         text = ""
         for page in pdf_reader.pages:
             text += page.extract_text() or ""
         if text.strip():
+            print("Successfully extracted text from PDF")
             return text
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"PDF extraction failed: {e}")
+
+    # Try plain text (for skills profile .txt files from onboarding)
     try:
-        return file_bytes.decode('utf-8', errors='ignore')
-    except Exception:
-        return ""
+        decoded = file_bytes.decode('utf-8', errors='ignore')
+        if decoded.strip():
+            print("Successfully read as plain text file")
+            return decoded
+    except Exception as e:
+        print(f"Text decode failed: {e}")
+
+    return ""
+
 
 def extract_skills_with_claude(text: str, career_goal: str) -> dict:
     try:
@@ -57,25 +69,34 @@ Analyze the following student profile text and extract their skills.
 The student's career goal is: {career_goal}
 
 Student profile text:
-{text[:3000]}
+{text[:4000]}
+
+IMPORTANT RULES:
+- Extract EVERY skill mentioned in the text by name (Python, React, TensorFlow, etc.)
+- Do NOT use generic names like "Core Skill 1" or "Skill A"
+- Use the EXACT skill names as written in the profile
+- Assign realistic proficiency scores based on context
+- Identify skill gaps specific to the career goal: {career_goal}
 
 Return ONLY a valid JSON object with exactly this structure, no extra text:
 {{
   "extracted_skills": [
-    {{"name": "Python", "proficiency": 0.8, "category": "Programming"}},
-    {{"name": "React", "proficiency": 0.7, "category": "Frontend"}}
+    {{"name": "Python", "proficiency": 0.7, "category": "Programming"}},
+    {{"name": "Machine Learning", "proficiency": 0.5, "category": "AI/ML"}},
+    {{"name": "Flask", "proficiency": 0.6, "category": "Backend"}}
   ],
   "skill_gaps": [
-    {{"name": "Docker", "priority": "high", "reason": "Essential for deployment"}},
-    {{"name": "System Design", "priority": "medium", "reason": "Required for senior roles"}}
+    {{"name": "TensorFlow", "priority": "high", "reason": "Essential for AI/ML Engineer role"}},
+    {{"name": "MLOps", "priority": "high", "reason": "Required for production AI systems"}},
+    {{"name": "Deep Learning", "priority": "medium", "reason": "Core skill for AI/ML Engineer"}}
   ],
-  "summary": "Brief summary of student current skill level and what they need"
+  "summary": "Brief summary of student current skill level and what they need for {career_goal}"
 }}
 
 Rules:
-- Extract real skills mentioned in the text
+- Extract real skills mentioned in the text — use exact names
 - Proficiency should be between 0.1 and 1.0
-- Identify 3-6 skill gaps based on the career goal
+- Identify 4-6 skill gaps specific to the career goal
 - Keep skill names short and standard
 - Return ONLY the JSON, no markdown, no explanation"""
 
@@ -112,6 +133,7 @@ Rules:
             "summary": f"Profile analyzed for {career_goal}."
         }
 
+
 def generate_roadmap_with_claude(skills: list, gaps: list, career_goal: str) -> dict:
     try:
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
@@ -121,11 +143,18 @@ def generate_roadmap_with_claude(skills: list, gaps: list, career_goal: str) -> 
 
         prompt = f"""You are an expert learning path designer.
 
-Create a personalized learning roadmap for a student.
+Create a personalized learning roadmap for a student who wants to become a {career_goal}.
 
 Career Goal: {career_goal}
-Current Skills: {skills_str}
+Current Skills the student HAS: {skills_str}
 Skill Gaps to Address: {gaps_str}
+
+IMPORTANT RULES:
+- Use REAL skill names in the roadmap phases (e.g. TensorFlow, PyTorch, Docker)
+- Do NOT use generic names like "Core Skill 1", "Intermediate Skill 2" etc.
+- Resources must be real working URLs from Coursera, YouTube, official docs etc.
+- Roadmap must be specifically tailored for someone becoming a {career_goal}
+- Build on what they already know: {skills_str}
 
 Return ONLY a valid JSON object with exactly this structure, no extra text:
 {{
@@ -134,7 +163,7 @@ Return ONLY a valid JSON object with exactly this structure, no extra text:
       "phase": 1,
       "title": "Foundation Building",
       "duration": "2 weeks",
-      "skills": ["Skill1", "Skill2"],
+      "skills": ["Specific Skill Name 1", "Specific Skill Name 2"],
       "resources": [
         {{"title": "Resource Name", "url": "https://actual-url.com", "type": "course"}},
         {{"title": "Resource Name", "url": "https://actual-url.com", "type": "video"}}
@@ -145,7 +174,7 @@ Return ONLY a valid JSON object with exactly this structure, no extra text:
       "phase": 2,
       "title": "Intermediate Skills",
       "duration": "3 weeks",
-      "skills": ["Skill3", "Skill4"],
+      "skills": ["Specific Skill Name 3", "Specific Skill Name 4"],
       "resources": [
         {{"title": "Resource Name", "url": "https://actual-url.com", "type": "docs"}}
       ],
@@ -155,7 +184,7 @@ Return ONLY a valid JSON object with exactly this structure, no extra text:
       "phase": 3,
       "title": "Advanced & Portfolio",
       "duration": "4 weeks",
-      "skills": ["Skill5", "Skill6"],
+      "skills": ["Specific Skill Name 5", "Specific Skill Name 6"],
       "resources": [
         {{"title": "Resource Name", "url": "https://actual-url.com", "type": "project"}}
       ],
@@ -163,14 +192,15 @@ Return ONLY a valid JSON object with exactly this structure, no extra text:
     }}
   ],
   "total_duration": "9 weeks",
-  "next_skill": "The single most important skill to start with right now"
+  "next_skill": "The single most important specific skill to start with right now"
 }}
 
 Rules:
-- Use real, working URLs for resources (Coursera, YouTube, docs, etc.)
+- Use real working URLs (Coursera, YouTube, official docs, freeCodeCamp etc.)
 - Make phases progressive from beginner to advanced
 - Each phase should have 2-4 resources
 - Total 3 phases minimum
+- Skill names must be specific and real — never generic
 - Return ONLY the JSON, no markdown, no explanation"""
 
         message = client.messages.create(
@@ -231,6 +261,7 @@ Rules:
             "next_skill": "Start with the most fundamental skill"
         }
 
+
 @router.post("/pdf")
 async def upload_pdf(
     file: UploadFile = File(...),
@@ -248,23 +279,25 @@ async def upload_pdf(
 
     print(f"Extracted text length: {len(text)}")
     print(f"Career goal: {career_goal}")
+    print(f"Text preview: {text[:200]}")
 
     claude_result = extract_skills_with_claude(text, career_goal)
     print(f"Skills found: {len(claude_result.get('extracted_skills', []))}")
+    print(f"Skills: {[s['name'] for s in claude_result.get('extracted_skills', [])]}")
 
+    # Delete old skills for this user before saving new ones
+    db.query(Skill).filter(Skill.user_id == current_user.id).delete()
+    db.commit()
+
+    # Save all extracted skills
     for skill_data in claude_result.get("extracted_skills", []):
-        existing = db.query(Skill).filter(
-            Skill.user_id == current_user.id,
-            Skill.name == skill_data["name"]
-        ).first()
-        if not existing:
-            skill = Skill(
-                user_id=current_user.id,
-                name=skill_data["name"],
-                proficiency=skill_data.get("proficiency", 0.5),
-                source="pdf"
-            )
-            db.add(skill)
+        skill = Skill(
+            user_id=current_user.id,
+            name=skill_data["name"],
+            proficiency=skill_data.get("proficiency", 0.5),
+            source="profile"
+        )
+        db.add(skill)
     db.commit()
 
     roadmap_data = generate_roadmap_with_claude(
@@ -274,6 +307,7 @@ async def upload_pdf(
     )
     print(f"Roadmap phases: {len(roadmap_data.get('roadmap', []))}")
 
+    # Update or create roadmap
     existing_roadmap = db.query(Roadmap).filter(
         Roadmap.user_id == current_user.id
     ).first()
@@ -300,6 +334,7 @@ async def upload_pdf(
         "roadmap": roadmap_data
     }
 
+
 @router.get("/my-skills")
 def get_my_skills(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -317,6 +352,7 @@ def get_my_skills(
             for s in skills
         ]
     }
+
 
 @router.get("/my-roadmap")
 def get_my_roadmap(
