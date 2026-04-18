@@ -1,47 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { GripVertical, CheckCircle, Clock, Circle, ExternalLink } from "lucide-react";
+import { GripVertical, CheckCircle, Clock, Circle, ExternalLink, Map } from "lucide-react";
 import { getMyRoadmap } from "@/lib/api";
-
-const fallbackMilestones = [
-  {
-    id: "m1",
-    title: "TypeScript Fundamentals",
-    description: "Master advanced TS patterns",
-    status: "done",
-    duration: "1 week",
-    skills: ["TypeScript"],
-    resources: [{ title: "TypeScript Handbook", url: "https://www.typescriptlang.org/docs" }]
-  },
-  {
-    id: "m2",
-    title: "Node.js Deep Dive",
-    description: "Backend APIs with Express",
-    status: "in_progress",
-    duration: "2 weeks",
-    skills: ["Node.js", "Express"],
-    resources: [{ title: "Node.js Docs", url: "https://nodejs.org/docs" }]
-  },
-  {
-    id: "m3",
-    title: "Database Design",
-    description: "PostgreSQL and schema design",
-    status: "todo",
-    duration: "1 week",
-    skills: ["PostgreSQL", "SQL"],
-    resources: [{ title: "PostgreSQL Tutorial", url: "https://www.postgresqltutorial.com" }]
-  },
-  {
-    id: "m4",
-    title: "DevOps Essentials",
-    description: "Docker, CI/CD pipelines",
-    status: "todo",
-    duration: "3 weeks",
-    skills: ["Docker", "CI/CD"],
-    resources: [{ title: "Docker Docs", url: "https://docs.docker.com" }]
-  },
-];
 
 const statusIcon = (status) => {
   if (status === "done") return <CheckCircle className="h-5 w-5 text-primary" />;
@@ -58,6 +19,7 @@ const statusBg = (status) => {
 const RoadmapBoard = () => {
   const [milestones, setMilestones] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [goal, setGoal] = useState("");
   const [totalDuration, setTotalDuration] = useState("");
   const [nextSkill, setNextSkill] = useState("");
@@ -84,11 +46,14 @@ const RoadmapBoard = () => {
           }));
           setMilestones(formatted);
         } else {
-          setMilestones(fallbackMilestones);
+          // No phases — show empty state, NOT fake data
+          setMilestones([]);
         }
       } catch (err) {
         console.error("Roadmap load error:", err);
-        setMilestones(fallbackMilestones);
+        // On error — show empty state, NOT fake data
+        setMilestones([]);
+        setError(true);
       }
       setLoading(false);
     }
@@ -112,6 +77,20 @@ const RoadmapBoard = () => {
       <div className="bg-card rounded-xl border border-border p-6 shadow-card">
         <div className="text-center text-muted-foreground py-8 text-sm">
           Loading your roadmap...
+        </div>
+      </div>
+    );
+  }
+
+  if (error || milestones.length === 0) {
+    return (
+      <div className="bg-card rounded-xl border border-border p-6 shadow-card">
+        <div className="text-center py-12 space-y-3">
+          <Map className="h-12 w-12 text-muted-foreground mx-auto" />
+          <p className="text-muted-foreground font-medium">No roadmap generated yet</p>
+          <p className="text-sm text-muted-foreground">
+            Complete onboarding or go to the <strong>Uploads</strong> tab to upload your profile and generate a personalized roadmap.
+          </p>
         </div>
       </div>
     );

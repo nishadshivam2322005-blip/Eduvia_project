@@ -82,40 +82,59 @@ const Onboarding = () => {
     setError("");
 
     try {
+      // Build a rich detailed skills profile text Claude can easily parse
       const skillsText = `
-Student Skills Profile for Eduvia
-===================================
+STUDENT SKILLS PROFILE FOR EDUVIA
+====================================
+Student Name: ${user?.name || "Student"}
 Career Goal: ${careerGoal}
 
-Current Skills:
+SKILLS I CURRENTLY KNOW (extract ALL of these as my existing skills):
 ${selectedSkills.join(", ")}
 
-Enrolled Courses:
-${courseLinks.filter(l => l.url.trim()).map(l => `- ${l.platform}: ${l.url}`).join("\n")}
-
-Skills by Category:
+MY SKILLS BROKEN DOWN BY CATEGORY:
 ${Object.entries(SKILL_SUGGESTIONS).map(([cat, skills]) => {
   const userSkills = skills.filter(s => selectedSkills.includes(s));
   return userSkills.length > 0 ? `${cat}: ${userSkills.join(", ")}` : null;
 }).filter(Boolean).join("\n")}
+
+COURSES AND CERTIFICATES I HAVE COMPLETED:
+${courseLinks.filter(l => l.url.trim()).map(l => `- ${l.platform || "Course"}: ${l.url}`).join("\n") || "None provided yet"}
+
+MY GOAL:
+I want to become a ${careerGoal}. I have listed all my current skills above.
+Please analyze these skills, identify what I am missing to reach my goal of
+becoming a ${careerGoal}, and generate a detailed personalized learning roadmap
+with real course links and resources.
+
+IMPORTANT: Extract EVERY skill I listed above with correct proficiency levels.
+Do NOT use generic names like "Core Skill 1". Use exact names like Python, React, TensorFlow etc.
       `.trim();
 
-      const blob = new Blob([skillsText], { type: "application/octet-stream" });
-      const file = new File([blob], "skills-profile.pdf", { type: "application/octet-stream" });
-
       const formData = new FormData();
+
       if (pdfFile) {
+        // User uploaded a real PDF certificate - use it directly
         formData.append("file", pdfFile);
       } else {
+        // Create a plain text file with skills profile so backend reads it cleanly
+        const blob = new Blob([skillsText], { type: "text/plain" });
+        const file = new File([blob], "skills-profile.txt", { type: "text/plain" });
         formData.append("file", file);
       }
 
       await uploadPDF(formData, careerGoal);
       navigate("/dashboard");
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Onboarding error:", err);
-      setError("Something went wrong. Please try again.");
+      if (err?.response?.status === 401) {
+        setError("Session expired. Please login again.");
+      } else if (err?.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     }
     setLoading(false);
   };
@@ -139,6 +158,7 @@ ${Object.entries(SKILL_SUGGESTIONS).map(([cat, skills]) => {
           </p>
         </div>
 
+        {/* Progress bar */}
         <div className="flex items-center gap-2 mb-2">
           {[1, 2, 3].map(s => (
             <div key={s} className="flex-1">
@@ -152,7 +172,7 @@ ${Object.entries(SKILL_SUGGESTIONS).map(([cat, skills]) => {
           <span className={step >= 3 ? "text-primary font-medium" : ""}>Courses & Certs</span>
         </div>
 
-        {/* Step 1 */}
+        {/* Step 1 - Career Goal */}
         {step === 1 && (
           <div className="bg-card rounded-2xl border border-border p-6 shadow-card space-y-4">
             <h2 className="text-lg font-display font-semibold text-foreground">
@@ -191,7 +211,7 @@ ${Object.entries(SKILL_SUGGESTIONS).map(([cat, skills]) => {
           </div>
         )}
 
-        {/* Step 2 */}
+        {/* Step 2 - Skills */}
         {step === 2 && (
           <div className="bg-card rounded-2xl border border-border p-6 shadow-card space-y-4">
             <h2 className="text-lg font-display font-semibold text-foreground">
@@ -243,7 +263,7 @@ ${Object.entries(SKILL_SUGGESTIONS).map(([cat, skills]) => {
           </div>
         )}
 
-        {/* Step 3 */}
+        {/* Step 3 - Courses & PDF */}
         {step === 3 && (
           <div className="bg-card rounded-2xl border border-border p-6 shadow-card space-y-4">
             <h2 className="text-lg font-display font-semibold text-foreground">

@@ -20,11 +20,11 @@ const SkillRadarChart = () => {
     getMySkills()
       .then(res => {
         const skills = res.data.skills;
-        if (skills.length > 0) {
+        if (skills && skills.length > 0) {
           setRadarData(skills.map(s => ({
             skill: s.name,
             current: Math.round(s.proficiency * 100),
-            required: Math.min(Math.round(s.proficiency * 100) + 20, 100)
+            required: Math.min(Math.round(s.proficiency * 100) + 25, 100)
           })));
         } else {
           setRadarData([]);
@@ -50,7 +50,7 @@ const SkillRadarChart = () => {
         <ResponsiveContainer width="100%" height={300}>
           <RadarChart data={radarData}>
             <PolarGrid strokeDasharray="3 3" stroke="hsl(220,15%,90%)" />
-            <PolarAngleAxis dataKey="skill" tick={{ fontSize: 12, fill: "hsl(220,10%,46%)" }} />
+            <PolarAngleAxis dataKey="skill" tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }} />
             <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} />
             <Radar name="Current" dataKey="current" stroke="hsl(165,80%,38%)" fill="hsl(165,80%,38%)" fillOpacity={0.3} />
             <Radar name="Required" dataKey="required" stroke="hsl(255,70%,55%)" fill="hsl(255,70%,55%)" fillOpacity={0.15} />
@@ -71,16 +71,24 @@ const SkillHeatmap = () => {
       .then(res => {
         const phases = res.data.roadmap?.roadmap || [];
         if (phases.length > 0) {
+          // FIX: Use phase TITLES as labels (not phase.skills which causes "Core Skill 1")
+          // Also use individual skills from each phase for a richer chart
           const formatted = [];
           phases.forEach(phase => {
-            phase.skills?.forEach(skill => {
-              formatted.push({
-                skill,
-                gap: phase.phase === 1 ? 35 : phase.phase === 2 ? 20 : 10
+            // Use each individual skill name from the phase
+            if (phase.skills && phase.skills.length > 0) {
+              phase.skills.forEach(skillName => {
+                // Assign gap value based on phase number
+                const gapValue = phase.phase === 1 ? 35 : phase.phase === 2 ? 22 : 12;
+                formatted.push({
+                  skill: skillName,
+                  gap: gapValue
+                });
               });
-            });
+            }
           });
-          setHeatmapData(formatted.slice(0, 10));
+          // Take up to 8 skills for a clean chart
+          setHeatmapData(formatted.slice(0, 8));
         } else {
           setHeatmapData([]);
         }
@@ -106,7 +114,12 @@ const SkillHeatmap = () => {
           <BarChart data={heatmapData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,15%,90%)" />
             <XAxis type="number" domain={[0, 40]} tick={{ fontSize: 12, fill: "hsl(220,10%,46%)" }} />
-            <YAxis dataKey="skill" type="category" tick={{ fontSize: 12, fill: "hsl(220,10%,46%)" }} width={120} />
+            <YAxis
+              dataKey="skill"
+              type="category"
+              tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }}
+              width={130}
+            />
             <Tooltip />
             <Bar dataKey="gap" radius={[0, 6, 6, 0]}>
               {heatmapData.map((entry, i) => (

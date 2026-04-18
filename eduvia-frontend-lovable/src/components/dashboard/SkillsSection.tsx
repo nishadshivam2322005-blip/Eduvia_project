@@ -23,6 +23,21 @@ const getStatus = (proficiency: number) => {
   return "not_started";
 };
 
+// Detect category from skill name since backend doesn't store category yet
+const detectCategory = (skillName: string): string => {
+  const name = skillName.toLowerCase();
+  if (["python", "javascript", "typescript", "java", "c++", "go", "rust", "swift", "kotlin"].some(s => name.includes(s))) return "Programming";
+  if (["react", "vue", "angular", "html", "css", "tailwind", "next.js", "svelte"].some(s => name.includes(s))) return "Frontend";
+  if (["node", "fastapi", "django", "express", "flask", "spring", "backend"].some(s => name.includes(s))) return "Backend";
+  if (["postgresql", "mysql", "mongodb", "redis", "firebase", "database", "sql"].some(s => name.includes(s))) return "Database";
+  if (["docker", "kubernetes", "aws", "gcp", "azure", "ci/cd", "linux", "devops"].some(s => name.includes(s))) return "DevOps";
+  if (["machine learning", "deep learning", "tensorflow", "pytorch", "nlp", "computer vision", "ai", "ml"].some(s => name.includes(s))) return "AI/ML";
+  if (["react native", "flutter", "android", "ios", "mobile"].some(s => name.includes(s))) return "Mobile";
+  if (["figma", "ui/ux", "design", "canva", "adobe"].some(s => name.includes(s))) return "Design";
+  if (["communication", "leadership", "agile", "teamwork", "problem solving"].some(s => name.includes(s))) return "Soft Skills";
+  return "Other";
+};
+
 const SkillsSection = () => {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +50,7 @@ const SkillsSection = () => {
         const formatted = res.data.skills.map((s, i) => ({
           id: String(i),
           name: s.name,
-          category: s.source === "pdf" ? "Extracted" : "Manual",
+          category: detectCategory(s.name),
           level: Math.round(s.proficiency * 100),
           status: getStatus(s.proficiency),
         }));
@@ -69,8 +84,8 @@ const SkillsSection = () => {
   if (skills.length === 0) {
     return (
       <div className="text-center py-20 space-y-3">
-        <p className="text-muted-foreground">No skills found yet.</p>
-        <p className="text-sm text-muted-foreground">Complete the onboarding to add your skills.</p>
+        <p className="text-muted-foreground font-medium">No skills found yet.</p>
+        <p className="text-sm text-muted-foreground">Complete onboarding or upload a profile PDF to track your skills.</p>
       </div>
     );
   }
@@ -119,13 +134,14 @@ const SkillsSection = () => {
             variant={filterStatus === f.key ? "default" : "outline"}
             size="sm"
             onClick={() => setFilterStatus(f.key)}
+            className="text-xs"
           >
             {f.label}
           </Button>
         ))}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {grouped.map(group => (
           <div key={group.name} className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
             <button

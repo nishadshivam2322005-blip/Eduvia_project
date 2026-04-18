@@ -21,14 +21,38 @@ const studentSidebarItems = [
   { icon: GraduationCap, label: "Courses" },
   { icon: Sparkles, label: "For You" },
   { icon: Map, label: "Roadmap" },
-  { icon: Bell, label: "Notifications", badge: 3 },
+  { icon: Bell, label: "Notifications" },
 ];
 
 const mentorSidebarItems = [
   { icon: LayoutDashboard, label: "Dashboard" },
   { icon: Users, label: "Students" },
-  { icon: Bell, label: "Notifications", badge: 2 },
+  { icon: Bell, label: "Notifications" },
 ];
+
+// Calculate login streak from localStorage
+const getLoginStreak = () => {
+  const today = new Date().toDateString();
+  const lastLogin = localStorage.getItem("eduvia_last_login");
+  const streakStr = localStorage.getItem("eduvia_streak") || "1";
+  let streak = parseInt(streakStr);
+
+  if (lastLogin !== today) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (lastLogin === yesterday.toDateString()) {
+      streak = streak + 1;
+    } else if (!lastLogin) {
+      streak = 1;
+    } else {
+      streak = 1; // streak broken
+    }
+    localStorage.setItem("eduvia_last_login", today);
+    localStorage.setItem("eduvia_streak", String(streak));
+  }
+
+  return streak;
+};
 
 const Dashboard = () => {
   const [collapsed, setCollapsed] = useState(false);
@@ -40,6 +64,7 @@ const Dashboard = () => {
   const [gapCount, setGapCount] = useState(null);
   const [roadmapProgress, setRoadmapProgress] = useState("0%");
   const [goalName, setGoalName] = useState("");
+  const [streak] = useState(() => getLoginStreak());
 
   const isMentor = user?.role === "mentor";
   const sidebarItems = isMentor ? mentorSidebarItems : studentSidebarItems;
@@ -53,12 +78,12 @@ const Dashboard = () => {
       .then(res => {
         const phases = res.data.roadmap?.roadmap || [];
         setGoalName(res.data.goal || "");
-        let totalSkills = 0;
-        phases.forEach((phase) => {
-          totalSkills += phase.skills?.length || 0;
-        });
-        setGapCount(totalSkills);
-        const donePhases = 1;
+
+        // FIX: gapCount = number of roadmap phases (learning stages needed)
+        setGapCount(phases.length);
+
+        // FIX: progress based on how many phases are "done" (first phase = in progress)
+        const donePhases = 0; // none done yet for a new user
         const progress = phases.length > 0
           ? Math.round((donePhases / phases.length) * 100)
           : 0;
@@ -79,15 +104,15 @@ const Dashboard = () => {
     {
       label: "Skills Tracked",
       value: skillCount !== null ? skillCount.toString() : "...",
-      change: skillCount ? `${skillCount} skills found` : "Upload PDF to track",
+      change: skillCount ? `${skillCount} skills found` : "Upload profile to track",
       icon: Target,
       iconBg: "bg-primary/10",
       iconColor: "text-primary"
     },
     {
-      label: "Skill Gaps",
+      label: "Learning Phases",
       value: gapCount !== null ? gapCount.toString() : "...",
-      change: gapCount ? "Skills to learn" : "Complete onboarding",
+      change: gapCount ? `${gapCount} phases to complete` : "Complete onboarding",
       icon: Search,
       iconBg: "bg-destructive/10",
       iconColor: "text-destructive"
@@ -95,15 +120,15 @@ const Dashboard = () => {
     {
       label: "Roadmap Progress",
       value: roadmapProgress,
-      change: goalName ? `Goal: ${goalName}` : "+12% this week",
+      change: goalName ? `Goal: ${goalName}` : "Complete onboarding",
       icon: Map,
       iconBg: "bg-chart-3/10",
       iconColor: "text-chart-3"
     },
     {
       label: "Days Streak",
-      value: "14",
-      change: "Personal best! 🔥",
+      value: String(streak),
+      change: streak >= 7 ? "Amazing streak! 🔥" : streak >= 3 ? "Keep it up! 💪" : "Just started!",
       icon: GraduationCap,
       iconBg: "bg-accent/10",
       iconColor: "text-accent"
@@ -135,101 +160,79 @@ const Dashboard = () => {
               onClick={() => setActiveTab(item.label)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                 activeTab === item.label
-                  ? "gradient-primary text-primary-foreground font-medium shadow-glow"
+                  ? "bg-primary/10 text-primary font-medium"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="flex-1 text-left">{item.label}</span>}
-              {!collapsed && item.badge && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  activeTab === item.label
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-destructive text-destructive-foreground"
-                }`}>
-                  {item.badge}
-                </span>
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && (
+                <span className="flex-1 text-left">{item.label}</span>
               )}
             </button>
           ))}
         </nav>
 
-        {!collapsed && (
-          <div className="p-3 border-t border-border">
-            <div className="flex items-center gap-3 p-2 rounded-xl">
-              <div className="h-9 w-9 rounded-full gradient-accent flex items-center justify-center text-sm font-bold text-accent-foreground shrink-0">
-                {user?.name?.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-foreground truncate">{user?.name}</div>
-                <div className="text-[10px] text-muted-foreground capitalize">
-                  {user?.role} {goalName && `· ${goalName}`}
-                </div>
-              </div>
+        {/* User info at bottom */}
+        <div className="p-3 border-t border-border">
+          {!collapsed && (
+            <div className="px-3 py-2 mb-1">
+              <p className="text-sm font-medium text-foreground truncate">{user?.name}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {isMentor ? "Mentor" : "Student"} · {user?.career_goal || goalName || "Set your goal"}
+              </p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
-          </div>
-        )}
-
-        <div className="p-2 border-t border-border">
+          )}
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Sign Out</span>}
           </button>
         </div>
+
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="absolute bottom-24 -right-3 h-6 w-6 rounded-full bg-card border border-border flex items-center justify-center shadow-sm hover:bg-muted transition-colors"
+        >
+          {collapsed
+            ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            : <ChevronLeft className="h-3 w-3 text-muted-foreground" />
+          }
+        </button>
       </aside>
 
-      {/* Main */}
+      {/* Main content */}
       <main className="flex-1 overflow-auto">
-        <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-          <div>
-            <h1 className="text-xl font-display font-bold text-foreground">{activeTab}</h1>
-            {isMentor && <p className="text-xs text-muted-foreground">Mentor View</p>}
-          </div>
+        {/* Top bar */}
+        <div className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-10">
+          <h1 className="text-lg font-display font-semibold text-foreground">{activeTab}</h1>
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
+            <div className="relative">
+              <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
               <input
-                className="bg-transparent text-sm outline-none placeholder:text-muted-foreground w-40"
                 placeholder="Search..."
+                className="h-9 pl-9 pr-4 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="relative"
-              onClick={() => setActiveTab("Notifications")}
-            >
-              <Bell className="h-4 w-4" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
-                3
+            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-sm font-semibold text-primary">
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </span>
-            </Button>
-            <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-sm font-bold text-primary-foreground">
-              {user?.name?.charAt(0).toUpperCase()}
             </div>
           </div>
-        </header>
+        </div>
 
-        <div className="p-6 max-w-6xl">
-
-          {/* Student Dashboard */}
+        <div className="p-6 space-y-6">
+          {/* Student Dashboard Tab */}
           {activeTab === "Dashboard" && !isMentor && (
             <div className="space-y-6 animate-fade-in">
-
-              {/* Welcome card */}
-              <div className="bg-card rounded-2xl border border-border p-6 shadow-card gradient-card">
-                <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* Welcome banner */}
+              <div className="bg-card rounded-2xl border border-border p-6 shadow-card">
+                <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-2xl font-display font-bold text-foreground">
+                    <h2 className="text-xl font-display font-bold text-foreground">
                       Welcome back, {user?.name?.split(" ")[0]}! 👋
                     </h2>
                     <p className="text-sm text-muted-foreground mt-1">
